@@ -81,7 +81,6 @@ set(GLTFIO_SRCS
         src/main/cpp/UbershaderLoader.cpp
         src/main/cpp/ResourceLoader.cpp
 
-        ${FILAMENT_DIR}/include/gltfio/resources/gltfresources_lite.h
         ${FILAMENT_DIR}/include/gltfio/resources/gltfresources.h
 
         ../common/NioUtils.cpp
@@ -105,16 +104,8 @@ add_library(gltfio-jni SHARED ${GLTFIO_SRCS})
 target_include_directories(gltfio-jni PRIVATE ${GLTFIO_INCLUDE_DIRS})
 set_target_properties(gltfio-jni PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libgltfio-jni.symbols)
 set_target_properties(gltfio-jni PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libgltfio-jni.map)
-
-if(GLTFIO_LITE)
-        target_compile_definitions(gltfio-jni PUBLIC GLTFIO_LITE=1)
-        target_link_libraries(gltfio-jni filament-jni utils log stb ktxreader basis_transcoder gltfio_resources_lite)
-else()
-        target_link_libraries(gltfio-jni filament-jni utils log stb ktxreader basis_transcoder gltfio_resources)
-
-        # Enable Draco in the non-lite variant of gltfio.
-        target_link_libraries(gltfio-jni dracodec)
-        target_compile_definitions(gltfio-jni PUBLIC GLTFIO_DRACO_SUPPORTED=1)
-        target_include_directories(gltfio-jni PRIVATE ${DRACO_DIR}/src)
-        target_include_directories(gltfio-jni PRIVATE ${DRACO_DIR}/tnt)
-endif()
+target_link_libraries(gltfio-jni filament-jni utils log stb ktxreader basis_transcoder gltfio_resources)
+target_link_libraries(gltfio-jni dracodec)
+target_compile_definitions(gltfio-jni PUBLIC GLTFIO_DRACO_SUPPORTED=1)
+target_include_directories(gltfio-jni PRIVATE ${DRACO_DIR}/src)
+target_include_directories(gltfio-jni PRIVATE ${DRACO_DIR}/tnt)
