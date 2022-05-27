@@ -39,6 +39,8 @@ set(SRCS
         src/StbProvider.cpp
         src/TangentsJob.cpp
         src/TangentsJob.h
+        src/UbershaderArchive.h
+        src/UbershaderArchive.cpp
         src/UbershaderLoader.cpp
         src/Wireframe.cpp
         src/Wireframe.h
@@ -59,13 +61,15 @@ function(generate_mat TEMPLATE SHADINGMODEL BLENDING)
     set(DOUBLESIDED false)
     set(TRANSPARENCY default)
     set(GENERATED_MAT "${RESOURCE_DIR}/${SHADINGMODEL}_${BLENDING}.mat")
+    set(GENERATED_SPEC "${RESOURCE_DIR}/${SHADINGMODEL}_${BLENDING}.spec")
     configure_file(materials/${TEMPLATE}.mat.in ${GENERATED_MAT})
+    configure_file(materials/${TEMPLATE}.spec.in ${GENERATED_SPEC})
     set(MATERIAL_SRCS ${MATERIAL_SRCS} ${GENERATED_MAT} PARENT_SCOPE)
 endfunction()
 
 set(MATERIAL_SRCS)
+generate_mat(ubershader lit opaque) # First material is the fallback material
 generate_mat(ubershader lit fade)
-generate_mat(ubershader lit opaque)
 generate_mat(ubershader lit masked)
 generate_mat(ubershader specularGlossiness fade)
 generate_mat(ubershader specularGlossiness opaque)
@@ -77,19 +81,30 @@ generate_mat(volume lit volume)
 generate_mat(transmission lit transmission)
 generate_mat(sheen lit sheen)
 
-set(RESOURCE_BINS)
+set(UBERZ_INPUTS)
 foreach (input_path ${MATERIAL_SRCS})
     get_filename_component(basename "${input_path}" NAME_WE)
-    set(output_path "${RESOURCE_DIR}/${basename}.filamat")
+    set(FILAMAT_PATH "${RESOURCE_DIR}/${basename}.filamat")
     add_custom_command(
-            OUTPUT ${output_path}
-            COMMAND matc ${MATC_BASE_FLAGS} -o ${output_path} ${input_path}
+            OUTPUT ${FILAMAT_PATH}
+            COMMAND matc ${MATC_BASE_FLAGS} -o ${FILAMAT_PATH} ${input_path}
             MAIN_DEPENDENCY ${input_path}
             DEPENDS matc
-            COMMENT "Compiling material ${input_path} to ${output_path}"
+            COMMENT "Compiling material ${input_path} to ${FILAMAT_PATH}"
     )
-    list(APPEND RESOURCE_BINS ${output_path})
+    list(APPEND UBERZ_INPUTS ${FILAMAT_PATH})
+    # list(APPEND UBERZ_INPUTS "${RESOURCE_DIR}/${basename}.spec")
 endforeach()
+
+set(RESOURCE_BINS ${RESOURCE_DIR}/lit_opaque.filamat) # TODO: remove this line
+
+# set(output_path "${RESOURCE_DIR}/full.uberz")
+# set(RESOURCE_BINS ${output_path})
+# add_custom_command(
+#     OUTPUT ${output_path}
+#     COMMAND uberz -o ${output_path} ${UBERZ_INPUTS}
+#     DEPENDS uberz
+#     COMMENT "Building ubershader archive ${output_path}")
 
 # ==================================================================================================
 # Build resources library

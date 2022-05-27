@@ -24,6 +24,8 @@
 
 #include <utils/Log.h>
 
+#include "UbershaderArchive.h"
+
 #include "gltfresources.h"
 
 using namespace filament;
@@ -60,19 +62,13 @@ public:
 
     Material* getMaterial(const MaterialKey& config) const;
 
-    enum ShadingMode {
-        UNLIT = 0,
-        LIT = 1,
-        SPECULAR_GLOSSINESS = 2,
-    };
-
-    mutable Material* mMaterials[12] = {};
+    mutable ArchiveCache mMaterials;
     Texture* mDummyTexture = nullptr;
 
     Engine* mEngine;
 };
 
-UbershaderLoader::UbershaderLoader(Engine* engine) : mEngine(engine) {
+UbershaderLoader::UbershaderLoader(Engine* engine) : mEngine(engine), mMaterials(*engine) {
     unsigned char texels[4] = {};
     mDummyTexture = Texture::Builder()
             .width(1).height(1)
@@ -84,60 +80,56 @@ UbershaderLoader::UbershaderLoader(Engine* engine) : mEngine(engine) {
 }
 
 size_t UbershaderLoader::getMaterialsCount() const noexcept {
-    return sizeof(mMaterials) / sizeof(mMaterials[0]);
+    return mMaterials.getMaterialsCount();
 }
 
 const Material* const* UbershaderLoader::getMaterials() const noexcept {
-    return &mMaterials[0];
+    return mMaterials.getMaterials();
 }
 
 void UbershaderLoader::destroyMaterials() {
-    for (auto& material : mMaterials) {
-        mEngine->destroy(material);
-        material = nullptr;
-    }
+    mMaterials.destroyMaterials();
     mEngine->destroy(mDummyTexture);
 }
 
-#define CREATE_MATERIAL(name) Material::Builder() \
-    .package(GLTFRESOURCES_ ## name ## _DATA, GLTFRESOURCES_ ## name ## _SIZE) \
-    .build(*mEngine);
-
-#define MATINDEX(shading, alpha, sheen, transmit, volume) (volume ? 11 : (transmit ? 10 : (sheen ? 9 : (int(shading) + 3 * int(alpha)))))
-
 Material* UbershaderLoader::getMaterial(const MaterialKey& config) const {
-    const ShadingMode shading = config.unlit ? UNLIT :
-            (config.useSpecularGlossiness ? SPECULAR_GLOSSINESS : LIT);
-    const int matindex = MATINDEX(shading, config.alphaMode, config.hasSheen, config.hasTransmission, config.hasVolume);
-    if (mMaterials[matindex] != nullptr) {
-        return mMaterials[matindex];
+    const Shading shading = config.unlit ? Shading::UNLIT :
+            (config.useSpecularGlossiness ? Shading::SPECULAR_GLOSSINESS : Shading::LIT);
+
+    BlendingMode blending;
+    switch (config.alphaMode) {
+        case AlphaMode::OPAQUE: blending = BlendingMode::OPAQUE; break;
+        case AlphaMode::MASK:   blending = BlendingMode::MASKED; break;
+        case AlphaMode::BLEND:  blending = BlendingMode::FADE; break;
     }
-    switch (matindex) {
-        case MATINDEX(LIT, AlphaMode::OPAQUE, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(LIT_OPAQUE); break;
-        case MATINDEX(LIT, AlphaMode::BLEND, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(LIT_FADE); break;
-        case MATINDEX(LIT, AlphaMode::MASK, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(LIT_MASKED); break;
-        case MATINDEX(UNLIT, AlphaMode::OPAQUE, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(UNLIT_OPAQUE); break;
-        case MATINDEX(UNLIT, AlphaMode::MASK, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(UNLIT_MASKED); break;
-        case MATINDEX(UNLIT, AlphaMode::BLEND, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(UNLIT_FADE); break;
-        case MATINDEX(SPECULAR_GLOSSINESS, AlphaMode::OPAQUE, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(SPECULARGLOSSINESS_OPAQUE); break;
-        case MATINDEX(SPECULAR_GLOSSINESS, AlphaMode::MASK, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(SPECULARGLOSSINESS_MASKED); break;
-        case MATINDEX(SPECULAR_GLOSSINESS, AlphaMode::BLEND, false, false, false): mMaterials[matindex] = CREATE_MATERIAL(SPECULARGLOSSINESS_FADE); break;
-        case MATINDEX(0, 0, false, true, false): mMaterials[matindex] = CREATE_MATERIAL(LIT_TRANSMISSION); break;
-        case MATINDEX(0, 0, true, false, false): mMaterials[matindex] = CREATE_MATERIAL(LIT_SHEEN); break;
-        case MATINDEX(0, 0, false, false, true): mMaterials[matindex] = CREATE_MATERIAL(LIT_VOLUME); break;
+
+    ArchiveRequirements requirements = { shading, blending };
+    requirements.features["Sheen"] = config.hasSheen;
+    requirements.features["Transmission"] = config.hasTransmission;
+    requirements.features["Volume"] = config.hasVolume;
+    requirements.features["Ior"] = config.hasIOR;
+    requirements.features["VertexColors"] = config.hasVertexColors;
+    requirements.features["BaseColorTexture"] = config.hasBaseColorTexture;
+    requirements.features["NormalTexture"] = config.hasNormalTexture;
+    requirements.features["OcclusionTexture"] = config.hasOcclusionTexture;
+    requirements.features["EmissiveTexture"] = config.hasEmissiveTexture;
+    requirements.features["MetallicRoughnessTexture"] = config.hasMetallicRoughnessTexture;
+    requirements.features["ClearCoatTexture"] = config.hasClearCoatTexture;
+    requirements.features["ClearCoatRoughnessTexture"] = config.hasClearCoatRoughnessTexture;
+    requirements.features["ClearCoatNormalTexture"] = config.hasClearCoatNormalTexture;
+    requirements.features["ClearCoat"] = config.hasClearCoat;
+    requirements.features["TextureTransforms"] = config.hasTextureTransforms;
+    requirements.features["TransmissionTexture"] = config.hasTransmissionTexture;
+    requirements.features["SheenColorTexture"] = config.hasSheenColorTexture;
+    requirements.features["SheenRoughnessTexture"] = config.hasSheenRoughnessTexture;
+    requirements.features["VolumeThicknessTexture"] = config.hasVolumeThicknessTexture;
+
+    if (Material* mat = mMaterials.getMaterial(requirements); mat != nullptr) {
+        return mat;
     }
-    if (mMaterials[matindex] == nullptr) {
-        slog.w << "Unsupported glTF material configuration; falling back to LIT_OPAQUE." << io::endl;
-        MaterialKey litOpaque = config;
-        litOpaque.alphaMode = AlphaMode::OPAQUE;
-        litOpaque.hasTransmission = false;
-        litOpaque.hasVolume = false;
-        litOpaque.hasSheen = false;
-        litOpaque.useSpecularGlossiness = false;
-        litOpaque.unlit = false;
-        return getMaterial(litOpaque);
-    }
-    return mMaterials[matindex];
+
+    slog.w << "Unsupported glTF material configuration; using fallback." << io::endl;
+    return mMaterials.getDefaultMaterial();
 }
 
 MaterialInstance* UbershaderLoader::createMaterialInstance(MaterialKey* config, UvMap* uvmap,
