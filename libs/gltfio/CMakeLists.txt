@@ -81,6 +81,7 @@ generate_mat(volume lit volume)
 generate_mat(transmission lit transmission)
 generate_mat(sheen lit sheen)
 
+set(UBERZ_NAMES)
 set(UBERZ_INPUTS)
 foreach (input_path ${MATERIAL_SRCS})
     get_filename_component(basename "${input_path}" NAME_WE)
@@ -92,19 +93,18 @@ foreach (input_path ${MATERIAL_SRCS})
             DEPENDS matc
             COMMENT "Compiling material ${input_path} to ${FILAMAT_PATH}"
     )
+    list(APPEND UBERZ_NAMES "${RESOURCE_DIR}/${basename}")
     list(APPEND UBERZ_INPUTS ${FILAMAT_PATH})
-    # list(APPEND UBERZ_INPUTS "${RESOURCE_DIR}/${basename}.spec")
+    list(APPEND UBERZ_INPUTS "${RESOURCE_DIR}/${basename}.spec")
 endforeach()
 
-set(RESOURCE_BINS ${RESOURCE_DIR}/lit_opaque.filamat) # TODO: remove this line
-
-# set(output_path "${RESOURCE_DIR}/full.uberz")
-# set(RESOURCE_BINS ${output_path})
-# add_custom_command(
-#     OUTPUT ${output_path}
-#     COMMAND uberz -o ${output_path} ${UBERZ_INPUTS}
-#     DEPENDS uberz
-#     COMMENT "Building ubershader archive ${output_path}")
+set(output_path "${RESOURCE_DIR}/full.uberz")
+set(RESOURCE_BINS ${output_path})
+add_custom_command(
+    OUTPUT ${output_path}
+    COMMAND uberz -o ${output_path} ${UBERZ_NAMES}
+    DEPENDS uberz ${UBERZ_INPUTS}
+    COMMENT "Building ubershader archive ${output_path}")
 
 # ==================================================================================================
 # Build resources library
