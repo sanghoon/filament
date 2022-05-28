@@ -14,25 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef GLTFIO_UBERSHADER_ARCHIVE_H
-#define GLTFIO_UBERSHADER_ARCHIVE_H
-
-#include <stdint.h>
+#ifndef UBERZ_ARCHIVE_CACHE_H
+#define UBERZ_ARCHIVE_CACHE_H
 
 #include <filament/Engine.h>
 #include <filament/Material.h>
-#include <filament/MaterialEnums.h>
 
 #include <tsl/robin_map.h>
+
+#include <uberz/ReadableArchive.h>
 
 #include <utils/CString.h>
 #include <utils/FixedCapacityVector.h>
 
-namespace gltfio {
+namespace filament::uberz {
 
-    struct Archive;
     struct ArchiveRequirements;
 
+    // Stores a set of Filament materials and knows how to choose a suitable material when given a
+    // set of requirements. Used by gltfio; users do not need to access this class directly.
     class ArchiveCache {
     public:
         ArchiveCache(filament::Engine& engine) : mEngine(engine) {}
@@ -48,58 +48,8 @@ namespace gltfio {
     private:
         filament::Engine& mEngine;
         utils::FixedCapacityVector<filament::Material*> mMaterials;
-        Archive* mArchive = nullptr;
+        struct ReadableArchive* mArchive = nullptr;
     };
-
-    enum class ArchiveFeature : uint64_t {
-        UNSUPPORTED,
-        OPTIONAL,
-        REQUIRED,
-    };
-
-    #pragma clang diagnostic push
-    #pragma clang diagnostic warning "-Wpadded"
-
-    struct ArchiveFlag {
-        union {
-            const char* name;
-            uint64_t nameOffset;
-        };
-        ArchiveFeature value;
-    };
-
-    struct ArchiveSpec {
-        union {
-            filament::Shading shadingModel;
-            uint32_t shadingModelValue;
-        };
-        union {
-            filament::BlendingMode blendingMode;
-            uint32_t blendingModeValue;
-        };
-        uint64_t flagsCount;
-        union {
-            ArchiveFlag* flags;
-            uint64_t flagsOffset;
-        };
-        uint64_t packageByteCount;
-        union {
-            uint8_t* package;
-            uint64_t packageOffset;
-        };
-    };
-
-    struct Archive {
-        uint32_t magic;
-        uint32_t version;
-        uint64_t specsCount;
-        union {
-            ArchiveSpec* specs;
-            uint64_t specsOffset;
-        };
-    };
-
-    #pragma clang diagnostic pop
 
     struct ArchiveRequirements {
         filament::Shading shadingModel;
@@ -107,6 +57,6 @@ namespace gltfio {
         tsl::robin_map<utils::CString, bool> features;
     };
 
-} // namespace gltfio
+} // namespace filament::uberz
 
-#endif // GLTFIO_UBERSHADER_ARCHIVE_H
+#endif // UBERZ_ARCHIVE_CACHE_H

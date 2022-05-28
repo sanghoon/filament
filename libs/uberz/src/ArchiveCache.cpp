@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-#include "UbershaderArchive.h"
+#include <uberz/ArchiveCache.h>
 
 #include <utils/memalign.h>
 
-using namespace filament;
-using namespace gltfio;
 using namespace utils;
 
-static_assert(sizeof(Archive) == 4 + 4 + 8 + 8);
-static_assert(sizeof(ArchiveSpec) == 4 + 4 + 8 + 8 + 8 + 8);
-static_assert(sizeof(ArchiveFlag) == 8 + 8);
+namespace filament::uberz {
 
 static bool strIsEqual(const CString& a, const char* b) {
     return strncmp(a.c_str(), b, a.size()) == 0;
@@ -36,19 +32,8 @@ void ArchiveCache::load(void* archiveData, uint64_t archiveByteCount) {
     assert_invariant(mArchive == nullptr);
     uint64_t* basePointer = (uint64_t*) utils::aligned_alloc(archiveByteCount, 8);
     memcpy(basePointer, archiveData, archiveByteCount);
-    mArchive = (Archive*) basePointer;
-    assert_invariant(mArchive->specsOffset % 8 == 0);
-    mArchive->specs = (ArchiveSpec*) (basePointer + mArchive->specsOffset / 8);
-    for (uint64_t i = 0; i < mArchive->specsCount; ++i) {
-        ArchiveSpec& spec = mArchive->specs[i];
-        assert_invariant(spec.flagsOffset % 8 == 0);
-        spec.flags = (ArchiveFlag*) (basePointer + (spec.flagsOffset / 8));
-        spec.package = ((uint8_t*) basePointer) + spec.packageOffset;
-        for (uint64_t j = 0; j < spec.flagsCount; ++j) {
-            ArchiveFlag& flag = spec.flags[j];
-            flag.name = ((const char*) basePointer) + flag.nameOffset;
-        }
-    }
+    mArchive = (ReadableArchive*) basePointer;
+    convertOffsetsToPointers(mArchive);
     mMaterials = FixedCapacityVector<Material*>(mArchive->specsCount);
 }
 
@@ -124,3 +109,5 @@ ArchiveCache::~ArchiveCache() {
         "Please call destroyMaterials explicitly to ensure correct destruction order");
     free(mArchive);
 }
+
+} // namespace filament::uberz

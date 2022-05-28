@@ -18,18 +18,17 @@
 
 #include <getopt/getopt.h>
 
-#include <algorithm>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
-#include <vector>
 
-#include <string.h>
+#include <utils/FixedCapacityVector.h>
+
+#include <uberz/WritableArchive.h>
 
 using namespace std;
 using namespace utils;
+using namespace filament::uberz;
 
 static std::string g_outputFile = "materials.uberz";
 static bool g_quietMode = false;
@@ -115,6 +114,11 @@ static int handleArguments(int argc, char* argv[]) {
     return optind;
 }
 
+static size_t getFileSize(const char* filename) {
+    std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
+    return in.tellg();
+};
+
 int main(int argc, char* argv[]) {
     const int optionIndex = handleArguments(argc, argv);
     const int numArgs = argc - optionIndex;
@@ -123,33 +127,47 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    vector<std::string> srcNames;
+    WritableArchive archive(argc - optionIndex);
+
     for (int argIndex = optionIndex; argIndex < argc; ++argIndex) {
-        srcNames.emplace_back(argv[argIndex]);
+        std::string name(argv[argIndex]);
+        const Path filamatPath(name + ".filamat");
+        if (!filamatPath.exists()) {
+            cerr << "Unable to open " << filamatPath << endl;
+            exit(1);
+        }
+        const Path specPath(name + ".spec");
+        if (!specPath.exists()) {
+            cerr << "Unable to open " << specPath << endl;
+            exit(1);
+        }
+
+        const size_t filamatSize = getFileSize(filamatPath.c_str());
+        FixedCapacityVector<uint8_t> filamatBuffer(filamatSize);
+        std::ifstream in(filamatPath.c_str(), std::ifstream::in | std::ifstream::binary);
+        if (!in.read((char*) filamatBuffer.data(), filamatSize)) {
+            cerr << "Unable to consume " << filamatPath << endl;
+            exit(1);
+        }
+
+        archive.addMaterial(name.c_str(), filamatBuffer.data(), filamatSize);
+
+        std::string specLine;
+        ifstream specStream(specPath.c_str());
+        while (std::getline(specStream, specLine)) {
+            archive.addSpecLine(specLine.c_str());
+        }
     }
 
-    for (auto name : srcNames) {
-        const Path filamat(name + ".filamat");
-        if (!filamat.exists()) {
-            cerr << "Unable to open " << filamat << endl;
-            exit(1);
-        }
-        const Path spec(name + ".spec");
-        if (!spec.exists()) {
-            cerr << "Unable to open " << spec << endl;
-            exit(1);
-        }
-    }
+    FixedCapacityVector<uint8_t> binBuffer = archive.serialize();
 
     ofstream binStream(g_outputFile, ios::binary);
     if (!binStream) {
         cerr << "Unable to open " << g_outputFile << endl;
         exit(1);
     }
-
-    binStream.write("HELLO", 5);
-
+    binStream.write((const char*) binBuffer.data(), binBuffer.size());
     binStream.close();
 
-    return 0;
+    return 1; // TODO(prideout): DO NOT COMMIT
 }

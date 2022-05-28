@@ -39,8 +39,6 @@ set(SRCS
         src/StbProvider.cpp
         src/TangentsJob.cpp
         src/TangentsJob.h
-        src/UbershaderArchive.h
-        src/UbershaderArchive.cpp
         src/UbershaderLoader.cpp
         src/Wireframe.cpp
         src/Wireframe.h
@@ -132,7 +130,7 @@ add_library(gltfio_resources ${DUMMY_SRC} ${RESGEN_SOURCE})
 # ==================================================================================================
 
 include_directories(${PUBLIC_HDR_DIR} ${RESOURCE_DIR})
-link_libraries(math utils filament cgltf stb ktxreader geometry gltfio_resources tsl trie)
+link_libraries(math utils filament cgltf stb ktxreader geometry gltfio_resources tsl trie uberzlib)
 
 add_library(gltfio_core STATIC ${PUBLIC_HDRS} ${SRCS})
 

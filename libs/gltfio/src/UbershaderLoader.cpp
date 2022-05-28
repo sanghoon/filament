@@ -24,12 +24,13 @@
 
 #include <utils/Log.h>
 
-#include "UbershaderArchive.h"
+#include <uberz/ArchiveCache.h>
 
 #include "gltfresources.h"
 
 using namespace filament;
 using namespace filament::math;
+using namespace filament::uberz;
 using namespace gltfio;
 using namespace utils;
 
