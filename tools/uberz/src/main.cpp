@@ -169,5 +169,5 @@ int main(int argc, char* argv[]) {
     binStream.write((const char*) binBuffer.data(), binBuffer.size());
     binStream.close();
 
-    return 1; // TODO(prideout): DO NOT COMMIT
+    return 0;
 }

@@ -15,6 +15,7 @@
  */
 
 #include <uberz/WritableArchive.h>
+#include <uberz/ReadableArchive.h>
 
 #include <utils/Log.h>
 
@@ -48,12 +49,12 @@ DEFINE_KEYWORD(unlit, "unlit");
 DEFINE_KEYWORD(lit, "lit");
 DEFINE_KEYWORD(subsurface, "subsurface");
 DEFINE_KEYWORD(cloth, "cloth");
-DEFINE_KEYWORD(specular_glossiness, "specular_glossiness");
+DEFINE_KEYWORD(specularGlossiness, "specularGlossiness");
 }
 
 namespace filament::uberz {
 
-static size_t consumeArchiveFeature(const char* cursor, ArchiveFeature* feature) {
+static size_t readArchiveFeature(const char* cursor, ArchiveFeature* feature) {
     if (Keywords::unsupported.test(cursor)) {
         *feature = ArchiveFeature::UNSUPPORTED;
         return Keywords::unsupported.len;
@@ -69,7 +70,7 @@ static size_t consumeArchiveFeature(const char* cursor, ArchiveFeature* feature)
     return 0;
 }
 
-static size_t consumeBlendingMode(const char* cursor, BlendingMode* blending) {
+static size_t readBlendingMode(const char* cursor, BlendingMode* blending) {
     if (Keywords::opaque.test(cursor)) {
         *blending = BlendingMode::OPAQUE;
         return Keywords::opaque.len;
@@ -101,7 +102,7 @@ static size_t consumeBlendingMode(const char* cursor, BlendingMode* blending) {
     return 0;
 }
 
-static size_t consumeShadingModel(const char* cursor, Shading* shading) {
+static size_t readShadingModel(const char* cursor, Shading* shading) {
     if (Keywords::unlit.test(cursor)) {
         *shading = Shading::UNLIT;
         return Keywords::unlit.len;
@@ -118,11 +119,32 @@ static size_t consumeShadingModel(const char* cursor, Shading* shading) {
         *shading = Shading::CLOTH;
         return Keywords::cloth.len;
     }
-    if (Keywords::specular_glossiness.test(cursor)) {
+    if (Keywords::specularGlossiness.test(cursor)) {
         *shading = Shading::SPECULAR_GLOSSINESS;
-        return Keywords::specular_glossiness.len;
+        return Keywords::specularGlossiness.len;
     }
     return 0;
+}
+
+static bool isAlphaNumeric(char c) {
+    return (c >= '0' && c <= '9') || c == '_'
+        || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+static bool isWhitespace(char c) {
+    return c == ' ' || c == '\t';
+}
+
+static size_t readIdentifier(const char* cursor)  {
+    size_t i = 0;
+    while (isAlphaNumeric(cursor[i])) i++;
+    return i;
+}
+
+static size_t readWhitespace(const char* cursor) {
+    size_t i = 0;
+    while (isWhitespace(cursor[i])) i++;
+    return i;
 }
 
 void WritableArchive::addMaterial(const char* name, const uint8_t* package, size_t packageSize) {
@@ -138,9 +160,9 @@ void WritableArchive::addSpecLine(const char* line) {
     const char* cursor = line;
 
     assert_invariant(mMaterialIndex > -1);
+    Material& material = mMaterials[mMaterialIndex];
 
     auto emitSyntaxError = [&](const char* msg) {
-        const auto& material = mMaterials[mMaterialIndex];
         const int column = 1 + cursor - line;
         slog.e
             << material.name.c_str() << ".spec(" << mLineNumber << ","  << column << "): "
@@ -148,114 +170,129 @@ void WritableArchive::addSpecLine(const char* line) {
         exit(1);
     };
 
-    auto isAlphaNumeric = [](char c) -> bool {
-        return (c >= '0' && c <= '9') ||
-            (c >= 'a' && c <= 'z') ||
-            (c >= 'A' && c <= 'Z') ||
-            c == '_';
-    };
-
-    auto isSymbol = [&](char c) -> bool {
-        return cursor[0] == c;
-    };
-
-    auto isWhitespace = [&](char c) -> bool {
-        return c == ' ' || c == '\t';
-    };
-
-    auto consumeIdentifier = [&]() -> size_t {
-        size_t i = 0;
-        while (isAlphaNumeric(cursor[i])) {
-            i++;
-        }
-        return i;
-    };
-
-    auto consumeWhitespace = [&]() -> size_t {
-        size_t i = 0;
-        while (isWhitespace(cursor[i])) {
-            i++;
-        }
-        return i;
-    };
-
     auto parseFeatureFlag = [&]() {
-        size_t length = consumeIdentifier();
+        size_t length = readIdentifier(cursor);
         if (length == 0) {
             emitSyntaxError("expected identifier");
         }
         CString id(cursor, length);
         cursor += length;
-        cursor += consumeWhitespace();
-        if (!isSymbol('=')) {
+        cursor += readWhitespace(cursor);
+        if (*cursor++ != '=') {
             emitSyntaxError("expected equal sign");
         }
-        ++cursor;
-        cursor += consumeWhitespace();
-        ArchiveFeature feature;
-        length = consumeArchiveFeature(cursor, &feature);
+        cursor += readWhitespace(cursor);
+        length = readArchiveFeature(cursor, &material.flags[id]);
         if (length == 0) {
             emitSyntaxError("expected unsupported / optional / required");
         }
         cursor += length;
-        if (cursor[0] != 0) {
-            emitSyntaxError("unexpected trailing character(s)");
-        }
-        #warning TODO: set prop in current material
     };
 
     auto parseBlendingMode = [&]() {
-        cursor += consumeWhitespace();
-        if (!isSymbol('=')) {
+        cursor += readWhitespace(cursor);
+        if (*cursor++ != '=') {
             emitSyntaxError("expected equal sign");
         }
-        ++cursor;
-        BlendingMode blending;
-        size_t length = consumeBlendingMode(cursor, &blending);
+        cursor += readWhitespace(cursor);
+        size_t length = readBlendingMode(cursor, &material.blendingMode);
         if (length == 0) {
             emitSyntaxError("expected lowercase blending mode enum");
         }
-        if (cursor[0] != 0) {
-            emitSyntaxError("unexpected trailing character(s)");
-        }
-        #warning TODO: set prop in current material
+        cursor += length;
     };
 
     auto parseShadingModel = [&]() {
-        cursor += consumeWhitespace();
-        if (!isSymbol('=')) {
+        cursor += readWhitespace(cursor);
+        if (*cursor++ != '=') {
             emitSyntaxError("expected equal sign");
         }
-        ++cursor;
-        Shading shading;
-        size_t length = consumeShadingModel(cursor, &shading);
+        cursor += readWhitespace(cursor);
+        size_t length = readShadingModel(cursor, &material.shadingModel);
         if (length == 0) {
             emitSyntaxError("expected lowercase shading enum");
         }
-        if (cursor[0] != 0) {
-            emitSyntaxError("unexpected trailing character(s)");
-        }
-        #warning TODO: set prop in current material
+        cursor += length;
     };
 
-    if (!line || !line[0] || line[0] == '\n' || line[0] == '#') {
-        // Do nothing for comment or empty line
-    } else if (Keywords::BlendingMode.test(line)) {
+    if (cursor[0] == 0 || cursor[0] == '#') {
+        ++mLineNumber;
+        return;
+    }
+
+    if (Keywords::BlendingMode.test(cursor)) {
         cursor += Keywords::BlendingMode.len;
         parseBlendingMode();
-    } else if (Keywords::ShadingModel.test(line)) {
+    } else if (Keywords::ShadingModel.test(cursor)) {
         cursor += Keywords::ShadingModel.len;
         parseShadingModel();
     } else {
         parseFeatureFlag();
     }
+
+    if (cursor[0] != 0) {
+        emitSyntaxError("unexpected trailing character");
+    }
+
     ++mLineNumber;
 }
 
 FixedCapacityVector<uint8_t> WritableArchive::serialize() const {
-    FixedCapacityVector<uint8_t> foo(5);
+    size_t byteCount = sizeof(ReadableArchive);
+    for (const auto& mat : mMaterials) {
+        byteCount += sizeof(ArchiveSpec);
+    }
+    size_t flaglistOffset = byteCount;
+    for (const auto& mat : mMaterials) {
+        for (const auto& pair : mat.flags) {
+            byteCount += sizeof(ArchiveFlag);
+            byteCount += pair.first.size() + 1;
+        }
+    }
+    size_t filamatOffset = byteCount;
+    for (const auto& mat : mMaterials) {
+        byteCount += mat.package.size();
+    }
+
+    ReadableArchive archive;
+    archive.magic = 'UBER';
+    archive.version = 0;
+    archive.specsCount = mMaterials.size();
+    archive.specsOffset = sizeof(ReadableArchive);
+
+    auto specs = FixedCapacityVector<ArchiveSpec>::with_capacity(mMaterials.size());
+    size_t flagCount = 0;
+    for (const auto& mat : mMaterials) {
+        ArchiveSpec spec;
+        spec.shadingModel = mat.shadingModel;
+        spec.blendingMode = mat.blendingMode;
+        spec.flagsCount = mat.flags.size();
+        spec.flagsOffset = flaglistOffset;
+        spec.packageByteCount = mat.package.size();
+        spec.packageOffset = filamatOffset;
+        specs.push_back(spec);
+        flaglistOffset += mat.flags.size() * sizeof(ArchiveFlag);
+        filamatOffset += mat.package.size();
+        flagCount += mat.flags.size();
+    }
+
+    auto flags = FixedCapacityVector<ArchiveFlag>::with_capacity(flagCount);
     // TODO
-    return foo;
+
+    std::string flagNames;
+    // TODO
+
+    FixedCapacityVector<uint8_t> outputBuffer(byteCount);
+    uint8_t* writeCursor = outputBuffer.data();
+    memcpy(writeCursor, &archive, sizeof(archive));
+    writeCursor += sizeof(archive);
+    memcpy(writeCursor, specs.data(), sizeof(ArchiveSpec) * specs.size());
+    writeCursor += sizeof(ArchiveSpec) * specs.size();
+    memcpy(writeCursor, flags.data(), sizeof(ArchiveFlag) * flags.size());
+    writeCursor += sizeof(ArchiveFlag) * flags.size();
+    memcpy(writeCursor, flagNames.data(), flagNames.size());
+    assert_invariant(writeCursor - outputBuffer.data() == outputBuffer.size());
+    return outputBuffer;
 }
 
 } // namespace filament::uberz

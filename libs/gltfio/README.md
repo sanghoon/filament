@@ -84,11 +84,13 @@ foreach spec {
     [u64] size in bytes of the filamat blob
     [u64] offset to FILAMAT for this spec
 }
-foreach spec { foreach flag {
+foreach spec {
     FLAGLIST:
-    [u64] offset to FLAGNAME for this spec/flag pair
-    [u64] flag value: 0 = unsupported, 1 = optional, or 2 = required
-} }
+    foreach flag {
+        [u64] offset to FLAGNAME for this spec/flag pair
+        [u64] flag value: 0 = unsupported, 1 = optional, or 2 = required
+    }
+}
 foreach spec { foreach flag {
     FLAGNAME:
     [u8...] flag name, including null terminator
