@@ -29,6 +29,8 @@ option(FILAMENT_SKIP_SDL2 "Skip dependencies of SDL2, and SDL2" OFF)
 
 option(FILAMENT_LINUX_IS_MOBILE "Treat Linux as Mobile" OFF)
 
+option(FILAMENT_INSTALL_FILAMENTAPP "Install filamentapp and its dependencies" OFF)
+
 set(FILAMENT_NDK_VERSION "" CACHE STRING
     "Android NDK version or version prefix to be used when building for Android."
 )

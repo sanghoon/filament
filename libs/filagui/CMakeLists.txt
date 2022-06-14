@@ -93,3 +93,12 @@ if (NOT MSVC)
             $<$<CONFIG:Release>:-ffast-math>
     )
 endif()
+
+# ==================================================================================================
+# Installation
+# ==================================================================================================
+if (FILAMENT_INSTALL_FILAMENTAPP)
+    set(INSTALL_TYPE ARCHIVE)
+    install(TARGETS ${TARGET} ${INSTALL_TYPE} DESTINATION lib/${DIST_DIR})
+    install(FILES ${PUBLIC_HDRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/filagui)
+endif()

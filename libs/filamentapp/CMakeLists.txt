@@ -154,3 +154,13 @@ if (_isMultiConfig)
 else()
     target_compile_definitions(${TARGET} PRIVATE RELATIVE_ASSET_PATH=".")
 endif()
+
+# ==================================================================================================
+# Installation
+# ==================================================================================================
+if (FILAMENT_INSTALL_FILAMENTAPP)
+    set(INSTALL_TYPE ARCHIVE)
+    install(TARGETS ${TARGET} filamentapp-resources
+            ${INSTALL_TYPE} DESTINATION lib/${DIST_DIR})
+    install(DIRECTORY ${PUBLIC_HDR_DIR}/${TARGET} DESTINATION include)
+endif()

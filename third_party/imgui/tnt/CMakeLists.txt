@@ -32,3 +32,12 @@ set(SRCS
 add_library(${TARGET} STATIC ${PRIVATE_HDRS} ${PUBLIC_HDRS} ${SRCS})
 
 target_include_directories(${TARGET} PUBLIC ${PUBLIC_HDR_DIR} ${PRIVATE_HDR_DIR})
+
+# ==================================================================================================
+# Installation
+# ==================================================================================================
+if (FILAMENT_INSTALL_FILAMENTAPP)
+    set(INSTALL_TYPE ARCHIVE)
+    install(TARGETS ${TARGET} ${INSTALL_TYPE} DESTINATION lib/${DIST_DIR})
+    install(FILES ${PUBLIC_HDRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()

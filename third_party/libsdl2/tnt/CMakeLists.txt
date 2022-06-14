@@ -228,3 +228,12 @@ else()
     target_compile_definitions(${TARGET} PRIVATE SDL_ATOMIC_DISABLED=1)
 endif()
 
+# ==================================================================================================
+# Installation
+# ==================================================================================================
+if (FILAMENT_INSTALL_FILAMENTAPP)
+    file(GLOB PUBLIC_HDR_FILES ${PUBLIC_HDR_DIR}/*.h)
+    set(INSTALL_TYPE ARCHIVE)
+    install(TARGETS ${TARGET} ${INSTALL_TYPE} DESTINATION lib/${DIST_DIR})
+    install(FILES ${PUBLIC_HDR_FILES} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()

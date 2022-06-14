@@ -21,3 +21,10 @@ include_directories(${PUBLIC_HDR_DIR})
 
 add_library(${TARGET} STATIC ${PRIVATE_HDRS} ${PUBLIC_HDRS} ${SRCS})
 target_include_directories (${TARGET} PUBLIC ${PUBLIC_HDR_DIR})
+
+# ==================================================================================================
+# Installation
+# ==================================================================================================
+if (FILAMENT_INSTALL_FILAMENTAPP)
+    install(FILES ${PUBLIC_HDRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/getopt)
+endif()
